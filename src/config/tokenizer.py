@@ -18,10 +18,11 @@ class Token(Enum):
     SECTION_END = 12
     EQUAL = 13
     NOT_EQUAL = 14
+    AND = 15
     ASSIGN = 15
-    SEPARATOR = 16
-    VAR = 17
-    CONST = 18
+    SEPARATOR = 17
+    VAR = 18
+    CONST = 19
 
 @dataclass
 class SectionLine:
@@ -239,6 +240,8 @@ def __tokenize_program_section__(section: TokenizerSection) -> TokenizerProgram 
                     tokens.append(TokenValue(token=Token.EQUAL, value=None, line=line))
                 elif word == "!=":
                     tokens.append(TokenValue(token=Token.NOT_EQUAL, value=None, line=line))
+                elif word == "&&":
+                    tokens.append(TokenValue(token=Token.AND, value=None, line=line))
                 else:
                     letters = []
                     SINGLE_CHAR_TOKENS = [":", "{", "}", "[", "]", ","]
@@ -296,11 +299,15 @@ def __parse_non_special_token__(value: str, line: SectionLine) -> TokenValue | N
     if __check_if_const_value__(value):
         return TokenValue(token=Token.CONST, value=value[1:-1], line=line)
 
-    SPECIAL_TOKENS = ["=", "!", ",", "{", "}", "[", "]", ":", "\""]
+    SPECIAL_TOKENS = ["=", "!", ",", "{", "}", "[", "]", ":", "\"", "&"]
     for token in SPECIAL_TOKENS:
         if token in value:
             raise TokenizerError(f"Restricted token '{token}' found in the value.")
 
+    if value == "mov_l":
+        return TokenValue(token=Token.MOV_L, value=None, line=line)
+    elif value == "mov_r":
+        return TokenValue(token=Token.MOV_R, value=None, line=line)
     return TokenValue(token=Token.VAR, value=value, line=line)
 
 def __check_if_const_value__(value: str) -> bool:

@@ -95,8 +95,19 @@ start s0 goto abc
 
 def test_program_parser():
     program = r'''
-START GOTO
+START S0
 S0 {
+    IF T.0 == "1" && T.1 == "0" THEN {
+      GOTO S1 {
+        T.0: ["0", MOV_L],
+        T.1: ["1", MOV_R],
+      }
+    } ELSE {
+      GOTO S0 {
+        T.0: ["1", MOV_R],
+        T.1: ["0", MOV_L]
+      }
+    }
 }
     '''
 
@@ -107,4 +118,8 @@ S0 {
     result = parse_program(tokenizer_result)
 
     assert result is not None
+    assert result.start_node is not None
+    assert result.start_node == "s0"
+    assert len(result.nodes) == 1
+    assert result.nodes["s0"] is not None
 
