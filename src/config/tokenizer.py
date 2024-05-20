@@ -24,9 +24,15 @@ class Token(Enum):
     CONST = 18
 
 @dataclass
+class SectionLine:
+    no: int
+    value: str
+
+@dataclass
 class TokenValue:
     token: Token
     value: str | None
+    line: SectionLine
 
 @dataclass
 class TokenizerProgram:
@@ -37,11 +43,6 @@ class TokenizerResult:
     alphabet: List[str]
     tapes: List[List[str]]
     program_content: TokenizerProgram
-
-@dataclass
-class SectionLine:
-    no: int
-    value: str
 
 @dataclass
 class TokenizerSection:
@@ -205,37 +206,39 @@ def __check_tapes__(result: TokenizerResult) -> bool:
 def __tokenize_program_section__(section: TokenizerSection) -> TokenizerProgram | None:
     tokens = []
     for line in section.content:
+        if line.value.startswith("#"):
+            continue
         line_str = re.sub(r'\s+', ' ', line.value.lower())
         try:
             for word in line_str.split(" "):
                 if word == "start":
-                    tokens.append(TokenValue(token=Token.START, value=None))
+                    tokens.append(TokenValue(token=Token.START, value=None, line=line))
                 elif word == "goto":
-                    tokens.append(TokenValue(token=Token.GOTO, value=None))
+                    tokens.append(TokenValue(token=Token.GOTO, value=None, line=line))
                 elif word == "if":
-                    tokens.append(TokenValue(token=Token.IF, value=None))
+                    tokens.append(TokenValue(token=Token.IF, value=None, line=line))
                 elif word == "then":
-                    tokens.append(TokenValue(token=Token.THEN, value=None))
+                    tokens.append(TokenValue(token=Token.THEN, value=None, line=line))
                 elif word == "else":
-                    tokens.append(TokenValue(token=Token.ELSE, value=None))
+                    tokens.append(TokenValue(token=Token.ELSE, value=None, line=line))
                 elif word == "elif":
-                    tokens.append(TokenValue(token=Token.ELSE_IF, value=None))
+                    tokens.append(TokenValue(token=Token.ELSE_IF, value=None, line=line))
                 elif word == "mov_l":
-                    tokens.append(TokenValue(token=Token.MOV_L, value=None))
+                    tokens.append(TokenValue(token=Token.MOV_L, value=None, line=line))
                 elif word == "mov_r":
-                    tokens.append(TokenValue(token=Token.MOV_R, value=None))
+                    tokens.append(TokenValue(token=Token.MOV_R, value=None, line=line))
                 elif word == "[":
-                    tokens.append(TokenValue(token=Token.TAB_START, value=None))
+                    tokens.append(TokenValue(token=Token.TAB_START, value=None, line=line))
                 elif word == "]":
-                    tokens.append(TokenValue(token=Token.TAB_END, value=None))
+                    tokens.append(TokenValue(token=Token.TAB_END, value=None, line=line))
                 elif word == "{":
-                    tokens.append(TokenValue(token=Token.SECTION_START, value=None))
+                    tokens.append(TokenValue(token=Token.SECTION_START, value=None, line=line))
                 elif word == "}":
-                    tokens.append(TokenValue(token=Token.SECTION_END, value=None))
+                    tokens.append(TokenValue(token=Token.SECTION_END, value=None, line=line))
                 elif word == "==":
-                    tokens.append(TokenValue(token=Token.EQUAL, value=None))
+                    tokens.append(TokenValue(token=Token.EQUAL, value=None, line=line))
                 elif word == "!=":
-                    tokens.append(TokenValue(token=Token.NOT_EQUAL, value=None))
+                    tokens.append(TokenValue(token=Token.NOT_EQUAL, value=None, line=line))
                 else:
                     letters = []
                     SINGLE_CHAR_TOKENS = [":", "{", "}", "[", "]", ","]
@@ -245,60 +248,60 @@ def __tokenize_program_section__(section: TokenizerSection) -> TokenizerProgram 
                             if len(letters) == 0:
                                 letters.append(c)
                             elif len(letters) == 1 and letters[0] == "=":
-                                tokens.append(TokenValue(token=Token.EQUAL, value=None))
+                                tokens.append(TokenValue(token=Token.EQUAL, value=None, line=line))
                                 letters = []
                             elif len(letters) == 1 and letters[0] == "!":
-                                tokens.append(TokenValue(token=Token.NOT_EQUAL, value=None))
+                                tokens.append(TokenValue(token=Token.NOT_EQUAL, value=None, line=line))
                                 letters = []
                             else:
-                                tokens.append(__parse_non_special_token__(value))
+                                tokens.append(__parse_non_special_token__(value, line=line))
                                 letters = []
                         elif c == "!":
                             if len(letters) == 0:
                                 letters.append(c)
                             else:
-                                tokens.append(__parse_non_special_token__(value))
+                                tokens.append(__parse_non_special_token__(value, line=line))
                                 letters = ["!"]
                         elif c in SINGLE_CHAR_TOKENS:
-                            tokens.append(__parse_non_special_token__(value))
+                            tokens.append(__parse_non_special_token__(value, line=line))
                             letters = []
                             if c == ":":
-                                tokens.append(TokenValue(token=Token.ASSIGN, value=None))
+                                tokens.append(TokenValue(token=Token.ASSIGN, value=None, line=line))
                             elif c == "{":
-                                tokens.append(TokenValue(token=Token.SECTION_START, value=None))
+                                tokens.append(TokenValue(token=Token.SECTION_START, value=None, line=line))
                             elif c == "}":
-                                tokens.append(TokenValue(token=Token.SECTION_END, value=None))
+                                tokens.append(TokenValue(token=Token.SECTION_END, value=None, line=line))
                             elif c == "[":
-                                tokens.append(TokenValue(token=Token.TAB_START, value=None))
+                                tokens.append(TokenValue(token=Token.TAB_START, value=None, line=line))
                             elif c == "]":
-                                tokens.append(TokenValue(token=Token.TAB_END, value=None))
+                                tokens.append(TokenValue(token=Token.TAB_END, value=None, line=line))
                             elif c == ",":
-                                tokens.append(TokenValue(token=Token.SEPARATOR, value=None))
+                                tokens.append(TokenValue(token=Token.SEPARATOR, value=None, line=line))
                             else:
                                 raise TokenizerError("Compiler error. Missed the handler for the single char token '{c}'")
                         else:
                             letters.append(c)
                     if len(letters) != 0:
-                        tokens.append(__parse_non_special_token__("".join(letters)))
+                        tokens.append(__parse_non_special_token__("".join(letters), line))
         except TokenizerError as e:
            print(f"Failed to tokenize the program at line '{line.no}: {line.value}' {e}")
            return None
 
     return TokenizerProgram(tokens=list(filter(lambda token: token is not None, tokens)))
 
-def __parse_non_special_token__(value: str) -> TokenValue | None:
+def __parse_non_special_token__(value: str, line: SectionLine) -> TokenValue | None:
     if len(value) == 0:
         return None
 
     if __check_if_const_value__(value):
-        return TokenValue(token=Token.CONST, value=value[1:-1])
+        return TokenValue(token=Token.CONST, value=value[1:-1], line=line)
 
     SPECIAL_TOKENS = ["=", "!", ",", "{", "}", "[", "]", ":", "\""]
     for token in SPECIAL_TOKENS:
         if token in value:
             raise TokenizerError(f"Restricted token '{token}' found in the value.")
 
-    return TokenValue(token=Token.VAR, value=value)
+    return TokenValue(token=Token.VAR, value=value, line=line)
 
 def __check_if_const_value__(value: str) -> bool:
     if len(value) < 2:

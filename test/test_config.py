@@ -1,3 +1,4 @@
+from src.config.parser import parse_program
 from src.config.tokenizer import SectionLine, TokenizerSection, tokenize, __tokenize_program_section__, Token
 
 def test_tokenize():
@@ -53,3 +54,57 @@ def test_program_tokenize():
     assert result.tokens[6].token == Token.CONST
     assert result.tokens[6].value == "457"
     assert result.tokens[7].token == Token.TAB_END
+
+def test_program_tokenize_comments():
+    program = r'''
+# this is a comment line
+start s0 goto abc
+{
+   test_line:without_spaces[123:"456"]
+}
+    '''
+
+    result = __tokenize_program_section__(TokenizerSection(name="program", content=list(map(lambda enum_line: SectionLine(no=enum_line[0], value=enum_line[1]), enumerate(program.split("\n"))))))
+
+    assert result is not None
+
+    print(result.tokens)
+
+    assert len(result.tokens) == 14
+    assert result.tokens[0].token == Token.START
+    assert result.tokens[1].token == Token.VAR
+    assert result.tokens[1].value == "s0"
+    assert result.tokens[2].token == Token.GOTO
+    assert result.tokens[3].token == Token.VAR
+    assert result.tokens[3].value == "abc"
+    assert result.tokens[4].token == Token.SECTION_START
+    assert result.tokens[5].token == Token.VAR
+    assert result.tokens[5].value == "test_line"
+    assert result.tokens[6].token == Token.ASSIGN
+    assert result.tokens[7].token == Token.VAR
+    assert result.tokens[7].value == "without_spaces"
+    assert result.tokens[8].token == Token.TAB_START
+    assert result.tokens[9].token == Token.VAR
+    # add a case to tokenizer such that the VAR name can't start with a number
+    assert result.tokens[9].value == "123"
+    assert result.tokens[10].token == Token.ASSIGN
+    assert result.tokens[11].token == Token.CONST
+    assert result.tokens[11].value == "456"
+    assert result.tokens[12].token == Token.TAB_END
+    assert result.tokens[13].token == Token.SECTION_END
+
+def test_program_parser():
+    program = r'''
+START GOTO
+S0 {
+}
+    '''
+
+    tokenizer_result = __tokenize_program_section__(TokenizerSection(name="program", content=list(map(lambda enum_line: SectionLine(no=enum_line[0], value=enum_line[1]), enumerate(program.split("\n"))))))
+
+    assert tokenizer_result is not None
+
+    result = parse_program(tokenizer_result)
+
+    assert result is not None
+
