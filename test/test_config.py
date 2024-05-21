@@ -102,6 +102,10 @@ S0 {
         T.0: ["0", MOV_L],
         T.1: ["1", MOV_R],
       }
+    } ELIF T.0 == T.1 THEN {
+        GOTO S1 {
+          T.0: [T.1, MOV_L]
+        }
     } ELSE {
       GOTO S0 {
         T.0: ["1", MOV_R],
@@ -115,11 +119,94 @@ S0 {
 
     assert tokenizer_result is not None
 
-    result = parse_program(tokenizer_result)
+    result = parse_program(tokenizer_result, 2, ["0", "1"])
 
     assert result is not None
     assert result.start_node is not None
     assert result.start_node == "s0"
     assert len(result.nodes) == 1
     assert result.nodes["s0"] is not None
+
+    assert result.check_syntax()
+
+def test_program_parser_single_if():
+    program = r'''
+START S0
+S0 {
+    IF T.0 == "1" && T.1 == "0" THEN {
+      GOTO S1 {
+        T.0: ["0", MOV_L],
+        T.1: ["1", MOV_R],
+      }
+    }
+}
+'''
+
+    tokenizer_result = __tokenize_program_section__(TokenizerSection(name="program", content=list(map(lambda enum_line: SectionLine(no=enum_line[0], value=enum_line[1]), enumerate(program.split("\n"))))))
+
+    assert tokenizer_result is not None
+
+    result = parse_program(tokenizer_result, 2, ["0", "1"])
+
+    assert result is not None
+    assert not result.check_syntax()
+
+def test_porgram_parser_single_else():
+    program = r'''
+START S0
+S0 {
+    ELSE {
+      GOTO S1 {
+        T.0: ["0", MOV_L],
+        T.1: ["1", MOV_R],
+      }
+    }
+}
+'''
+
+    tokenizer_result = __tokenize_program_section__(TokenizerSection(name="program", content=list(map(lambda enum_line: SectionLine(no=enum_line[0], value=enum_line[1]), enumerate(program.split("\n"))))))
+
+    assert tokenizer_result is not None
+
+    result = parse_program(tokenizer_result, 2, ["0", "1"])
+
+    assert result is not None
+    assert not result.check_syntax()
+
+def test_program_parser_if_chain():
+    program = r'''
+START S0
+S0 {
+    IF T.0 == "1" THEN {
+      GOTO S1 {
+        T.0: ["0", MOV_L]
+      }
+    }
+    ELIF T.0 == "1" THEN {
+      GOTO S1 {
+        T.0: ["0", MOV_L]
+      }
+    }
+    ELIF T.1 == "1" THEN {
+      GOTO S1 {
+        T.0: ["0", MOV_L]
+      }
+    }
+    ELSE {
+      GOTO S1 {
+        T.0: ["0", MOV_L]
+      }
+    }
+}
+'''
+
+    tokenizer_result = __tokenize_program_section__(TokenizerSection(name="program", content=list(map(lambda enum_line: SectionLine(no=enum_line[0], value=enum_line[1]), enumerate(program.split("\n"))))))
+
+    assert tokenizer_result is not None
+
+    result = parse_program(tokenizer_result, 2, ["0", "1"])
+
+    assert result is not None
+    assert result.check_syntax()
+
 

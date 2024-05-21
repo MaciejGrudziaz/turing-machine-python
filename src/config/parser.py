@@ -2,14 +2,15 @@ from dataclasses import dataclass
 from typing import Dict, Iterator, List, Tuple
 from src.config.tokenizer import SectionLine, Token, TokenValue, TokenizerProgram, TokenizerResult
 from enum import Enum
+from functools import reduce
 import re
 
 class NodeType(Enum):
     STATE = 0
     IF = 1
-    ELSE = 2
-    THEN = 3
-    ELIF = 4
+    ELIF = 2
+    ELSE = 3
+    THEN = 4
     GOTO = 5
 
 @dataclass
@@ -51,11 +52,84 @@ class Node:
         for line in node.lines.values():
             self.add_line(line)
 
-    def execute(self, tape_state: List[str]) -> NodeExecuteResult:
-        return NodeExecuteResult(tape_movement=[1 for _ in range(len(tape_state))], new_state=None, tape_value=[v for v in tape_state])
+    def does_end_with_goto(self) -> bool:
+        if len(self.children) == 0:
+            if self.node_type == NodeType.GOTO:
+                return True
+            else:
+                return False
 
-    def check(self) -> bool:
+        for child in self.children:
+            if not child.does_end_with_goto():
+                return False
         return True
+
+    def check_children(self, tape_count: int, alphabet: List[str]) -> bool:
+        for child in self.children:
+            if len(self.children) == 1:
+                child = self.children[0]
+                if child.node_type == NodeType.IF:
+                    self.__print_err__("Missing ELSE statement")
+                    return False
+                elif child.node_type == NodeType.ELSE:
+                    self.__print_err__("Missing IF statement")
+                    return False
+            elif len(self.children) > 1:
+                node_types = list(map(lambda child: child.node_type, self.children))
+                if_count = reduce(lambda count, node_type: count + 1 if node_type == NodeType.IF else count, node_types, 0)
+                if_pos = reduce(lambda pos, node_enum: node_enum[0] if node_enum[1] == NodeType.IF else pos, enumerate(node_types), 0)
+                else_count = reduce(lambda count, node_type: count + 1 if node_type == NodeType.ELSE else count, node_types, 0)
+                else_pos = reduce(lambda pos, node_enum: node_enum[0] if node_enum[1] == NodeType.ELSE else pos, enumerate(node_types), 0)
+                elif_count = reduce(lambda count, node_type: count + 1 if node_type == NodeType.ELIF else count, node_types, 0)
+                first_elif_pos = reduce(lambda pos, node_enum: node_enum[0] if node_enum[1] == NodeType.ELIF and pos == -1 else pos, enumerate(node_types), -1)
+                last_elif_pos = reduce(lambda pos, node_enum: node_enum[0] if node_enum[1] == NodeType.ELIF else pos, enumerate(node_types), 0)
+
+                if else_count > 1:
+                    self.__print_err__("Multiple ELSE definitions")
+                    return False
+                elif if_count == 1 and else_count == 0:
+                    self.__print_err__("Missing ELSE statement")
+                    return False
+                elif if_count == 0 and (elif_count > 0 or else_count > 0):
+                    self.__print_err__("Missing IF statement")
+                    return False
+                elif if_count > 1:
+                    self.__print_err__("Multiple IF statements")
+                    return False
+                elif elif_count > 0:
+                    if first_elif_pos != if_pos + 1:
+                        self.__print_err__("ELIF statement must be after IF statement")
+                        return False
+                    if (last_elif_pos - first_elif_pos + 1) != elif_count:
+                        self.__print_err__("ELIF statements must begin with IF statement and end with ELSE statement")
+                        return False
+                    if else_pos != last_elif_pos + 1:
+                        self.__print_err__("ELSE statement must be after last ELIF statement")
+                        return False
+                elif elif_count == 0:
+                    if else_pos != if_pos + 1:
+                        self.__print_err__("ELSE statement must be after IF statement")
+                        return False
+
+            if not child.self_check(tape_count, alphabet):
+                return False
+            if not child.check_children(tape_count, alphabet):
+                return False
+
+        return True
+
+    def execute(self, tape_state: List[str]) -> NodeExecuteResult:
+        return NodeExecuteResult(tape_movement=[1 for _ in range(len(tape_state))], new_state="", tape_value=[v for v in tape_state])
+
+    def self_check(self, tape_count: int, alphabet: List[str]) -> bool:
+        return True
+
+    def __print_err__(self, msg: str):
+        print(f"In component:\n{self}\n{msg}")
+
+    def __str__(self):
+        lines = map(lambda v: v[1].value, sorted(list(self.lines.items()), key=lambda v: v[0]))
+        return "\n".join(lines)
 
 class StateNode(Node):
     def __init__(self, name: str, line: SectionLine):
@@ -66,6 +140,9 @@ class IfNode(Node):
     def __init__(self, line: SectionLine):
         super().__init__(NodeType.IF, line)
         self.conditions = []
+
+    def change_to_elif(self):
+        self.node_type = NodeType.ELIF
 
     def add_condition_const(self, tape_id: TokenValue, val: TokenValue) -> bool:
         if tape_id.value is None or val.value is None:
@@ -93,7 +170,22 @@ class IfNode(Node):
 
         self.add_line(tape_id.line)
         self.add_line(ref_tape_id.line)
-        self.conditions.append((tape_id, ref_tape_id))
+        return True
+
+    def self_check(self, tape_count: int, alphabet: List[str]) -> bool:
+        for tape_id, val in self.conditions:
+            if tape_id < 0 or tape_id >= tape_count:
+                self.__print_err__(f"Tape 'T.{tape_id}' is not defined")
+                return False
+            if type(val).__name__ == "int":
+                if val < 0 or val >= tape_count:
+                    self.__print_err__(f"Tape 'T.{val}' is not defined")
+                    return False
+            else:
+                if val not in alphabet:
+                    self.__print_err__(f"Value '{val}' is not defined in the alphabet")
+                    return False
+
         return True
 
 class ElseNode(Node):
@@ -103,10 +195,6 @@ class ElseNode(Node):
 class ThenNode(Node):
     def __init__(self, line: SectionLine):
         super().__init__(NodeType.THEN, line)
-
-class ElifNode(Node):
-    def __init__(self, line: SectionLine):
-        super().__init__(NodeType.ELIF, line)
 
 class GotoNode(Node):
     def __init__(self, line: SectionLine):
@@ -150,7 +238,6 @@ class GotoNode(Node):
                 tape_movement[tape_id_val] = 1
             else:
                 print_err("Wrong tape movement value. Expected MOV_L or MOV_R", move.line)
-                print(move.token)
                 return False
 
             self.add_line(tape_id.line)
@@ -184,18 +271,46 @@ class GotoNode(Node):
         self.execute_result = NodeExecuteResult(tape_movement=tape_move_result, tape_value=tape_value_result, new_state=next_state)
         return True
 
+    def self_check(self, tape_count: int, alphabet: List[str]) -> bool:
+        return True
+
 class ProgramAST:
-    def __init__(self):
+    def __init__(self, tape_count: int, alphabet: List[str]):
+        self.alphabet = alphabet
+        self.tape_count = tape_count
         self.start_node = None
         self.nodes = {}
+
     def set_start_node(self, start_node: str):
         self.start_node = start_node
 
     def add_node(self, name: str, node: Node):
         self.nodes[name] = node
 
-def parse_program(tokenizer_result: TokenizerProgram) -> ProgramAST | None:
-    ast = ProgramAST()
+    def check_syntax(self) -> bool:
+        if self.start_node is None:
+            self.__print_err__("Start state is not defined!")
+            return False
+
+        if self.start_node not in self.nodes:
+            self.__print_err__(f"Start state '{self.start_node}' is not defined")
+            return False
+
+        for state_name, state in self.nodes.items():
+            if not state.does_end_with_goto():
+                self.__print_err__(f"State '{state_name}' have a path that does not result in tape action.")
+                return False
+            if not state.self_check(self.tape_count, self.alphabet):
+                return False
+            if not state.check_children(self.tape_count, self.alphabet):
+                return False
+        return True
+
+    def __print_err__(self, msg: str):
+        print(msg)
+
+def parse_program(tokenizer_result: TokenizerProgram, tape_count: int, alphabet: List[str]) -> ProgramAST | None:
+    ast = ProgramAST(tape_count, alphabet)
     tokens = tokenizer_result.tokens.__iter__()
     try:
         start_token = tokens.__next__()
@@ -235,12 +350,10 @@ def parse_state(tokens_iter: Iterator[TokenValue]) -> StateNode | None:
         print_err(f"Expected '{{', found {section_start}", section_start.line)
         return None
     state.add_line(section_start.line)
-
-
     section_end = tokens_iter.__next__()
     try:
         while section_end.token != Token.SECTION_END:
-            node = parse_state_node(section_end, tokens_iter)
+            node = parse_node(section_end, tokens_iter)
             if node is None:
                 return None
             state.add_child(node)
@@ -253,9 +366,11 @@ def parse_state(tokens_iter: Iterator[TokenValue]) -> StateNode | None:
 
     return state
 
-def parse_state_node(current_token: TokenValue, tokens_iter: Iterator[TokenValue]) -> Node | None:
+def parse_node(current_token: TokenValue, tokens_iter: Iterator[TokenValue]) -> Node | None:
     if current_token.token == Token.IF:
-        return parse_if_node(tokens_iter)
+        return parse_if_node(tokens_iter, is_elif=False)
+    elif current_token.token == Token.ELSE_IF:
+        return parse_if_node(tokens_iter, is_elif=True)
     elif current_token.token == Token.ELSE:
         return parse_else_node(tokens_iter)
     elif current_token.token == Token.GOTO:
@@ -264,9 +379,12 @@ def parse_state_node(current_token: TokenValue, tokens_iter: Iterator[TokenValue
         print_err(f"Unexpected token {current_token.token}", current_token.line)
         return None
 
-def parse_if_node(tokens_iter: Iterator[TokenValue]) -> IfNode | None:
+def parse_if_node(tokens_iter: Iterator[TokenValue], is_elif: bool) -> IfNode | None:
     then_token = tokens_iter.__next__()
     if_node = IfNode(then_token.line)
+    if is_elif:
+        if_node.change_to_elif()
+
     try:
         while then_token.token != Token.THEN:
             if then_token.token == Token.AND:
@@ -320,13 +438,16 @@ def parse_then_node(tokens_iter: Iterator[TokenValue]) -> ThenNode | None:
         return None
 
     then_node = ThenNode(begin_then_section.line)
-    goto_node = parse_goto_node(tokens_iter)
-    if goto_node is None:
-        return None
-    then_node.add_child(goto_node)
 
     end_then_section = tokens_iter.__next__()
-    if end_then_section.token != Token.SECTION_END:
+    try:
+        while end_then_section.token != Token.SECTION_END:
+            node = parse_node(end_then_section, tokens_iter)
+            if node is None:
+                return None
+            then_node.add_child(node)
+            end_then_section = tokens_iter.__next__()
+    except StopIteration:
         print_err(f"Expected }} tag, for the section opened at line: '{begin_then_section.line.no}: {begin_then_section.line.value}', not found.", end_then_section.line)
         return None
 
@@ -339,31 +460,26 @@ def parse_else_node(tokens_iter: Iterator[TokenValue]) -> ElseNode | None:
         return None
     else_node = ElseNode(begin_section.line)
 
-    goto_node = parse_goto_node(tokens_iter)
-    if goto_node is None:
-        return None
-    else_node.add_child(goto_node)
-
     end_section = tokens_iter.__next__()
-    if end_section.token != Token.SECTION_END:
+    try:
+        while end_section.token != Token.SECTION_END:
+            node = parse_node(end_section, tokens_iter)
+            if node is None:
+                return None
+            else_node.add_child(node)
+            end_section = tokens_iter.__next__()
+    except StopIteration:
         print_err(f"Expected '}}' tag, for the section opened at line: '{begin_section.line.no}: {begin_section.line.value}' not found.", end_section.line)
         return None
-    else_node.add_line(end_section.line)
 
     return else_node
 
 def parse_goto_node(tokens_iter: Iterator[TokenValue]) -> GotoNode | None:
-    goto_token = tokens_iter.__next__()
-    if goto_token.token != Token.GOTO:
-        print_err("Expected GOTO token.", goto_token.line)
-        return None
-
-    goto_node = GotoNode(goto_token.line)
-
     next_state = tokens_iter.__next__()
     if next_state.token != Token.VAR:
         print_err("Expected the STATE variable.", next_state.line)
         return None
+    goto_node = GotoNode(next_state.line)
 
     begin_section = tokens_iter.__next__()
     if begin_section.token != Token.SECTION_START:
@@ -414,7 +530,5 @@ def parse_goto_node(tokens_iter: Iterator[TokenValue]) -> GotoNode | None:
     if not goto_node.add_execution_result(next_state, tape_actions):
         print_err(f"Failed to parse the GOTO actions.", begin_section.line)
         return None
-
     return goto_node
-
 
