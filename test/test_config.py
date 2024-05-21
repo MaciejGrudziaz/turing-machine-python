@@ -98,13 +98,14 @@ def test_program_parser():
 START S0
 S0 {
     IF T.0 == "1" && T.1 == "0" THEN {
-      GOTO S1 {
+      GOTO S0 {
         T.0: ["0", MOV_L],
         T.1: ["1", MOV_R],
       }
     } ELIF T.0 == T.1 THEN {
-        GOTO S1 {
+        GOTO S0 {
           T.0: [T.1, MOV_L]
+          T.1: [T.1, MOV_L]
         }
     } ELSE {
       GOTO S0 {
@@ -178,22 +179,22 @@ def test_program_parser_if_chain():
 START S0
 S0 {
     IF T.0 == "1" THEN {
-      GOTO S1 {
+      GOTO S0 {
         T.0: ["0", MOV_L]
       }
     }
     ELIF T.0 == "1" THEN {
-      GOTO S1 {
-        T.0: ["0", MOV_L]
+      GOTO S0 {
+        T.0: [T.1, MOV_L]
       }
     }
     ELIF T.1 == "1" THEN {
-      GOTO S1 {
+      GOTO S0 {
         T.0: ["0", MOV_L]
       }
     }
     ELSE {
-      GOTO S1 {
+      GOTO S0 {
         T.0: ["0", MOV_L]
       }
     }
@@ -204,7 +205,7 @@ S0 {
 
     assert tokenizer_result is not None
 
-    result = parse_program(tokenizer_result, 2, ["0", "1"])
+    result = parse_program(tokenizer_result, 1, ["0", "1"])
 
     assert result is not None
     assert result.check_syntax()

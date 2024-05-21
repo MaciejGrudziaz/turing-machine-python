@@ -1,16 +1,13 @@
 from dataclasses import dataclass
 from typing import List
-
-@dataclass
-class ConfigAST:
-    structure: str
+from src.config.tokenizer import tokenize
+from src.config.parser import parse_program, ProgramAST
 
 @dataclass
 class Config:
-    tape_count: int
     alphabet: List[str]
     tapes: List[List[str]]
-    program: ConfigAST
+    program: ProgramAST
 
 def load_from_file(filepath: str) -> Config | None:
     file_content = None
@@ -31,8 +28,21 @@ def load_from_file(filepath: str) -> Config | None:
         print(f"Failed to read config file")
         return None
 
-    return load_from_string("\n".join(file_content))
+    return load_from_string("".join(file_content))
 
-def load_from_string(config: str) -> Config:
-    pass
+def load_from_string(config: str) -> Config | None:
+    print(f"Loaded config:\n{config}")
+
+    tokenizer_result = tokenize(config)
+    if tokenizer_result is None:
+        return None
+
+    program = parse_program(tokenizer_result.program_content, len(tokenizer_result.tapes), tokenizer_result.alphabet)
+    if program is None:
+        return None
+
+    if not program.check_syntax():
+        return None
+
+    return Config(alphabet=tokenizer_result.alphabet, tapes=tokenizer_result.tapes, program=program)
 

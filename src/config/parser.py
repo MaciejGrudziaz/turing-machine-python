@@ -64,7 +64,7 @@ class Node:
                 return False
         return True
 
-    def check_children(self, tape_count: int, alphabet: List[str]) -> bool:
+    def check_children(self, states: List[str], tape_count: int, alphabet: List[str]) -> bool:
         for child in self.children:
             if len(self.children) == 1:
                 child = self.children[0]
@@ -111,9 +111,9 @@ class Node:
                         self.__print_err__("ELSE statement must be after IF statement")
                         return False
 
-            if not child.self_check(tape_count, alphabet):
+            if not child.self_check(states, tape_count, alphabet):
                 return False
-            if not child.check_children(tape_count, alphabet):
+            if not child.check_children(states, tape_count, alphabet):
                 return False
 
         return True
@@ -121,7 +121,7 @@ class Node:
     def execute(self, tape_state: List[str]) -> NodeExecuteResult:
         return NodeExecuteResult(tape_movement=[1 for _ in range(len(tape_state))], new_state="", tape_value=[v for v in tape_state])
 
-    def self_check(self, tape_count: int, alphabet: List[str]) -> bool:
+    def self_check(self, states: List[str], tape_count: int, alphabet: List[str]) -> bool:
         return True
 
     def __print_err__(self, msg: str):
@@ -172,7 +172,7 @@ class IfNode(Node):
         self.add_line(ref_tape_id.line)
         return True
 
-    def self_check(self, tape_count: int, alphabet: List[str]) -> bool:
+    def self_check(self, states: List[str], tape_count: int, alphabet: List[str]) -> bool:
         for tape_id, val in self.conditions:
             if tape_id < 0 or tape_id >= tape_count:
                 self.__print_err__(f"Tape 'T.{tape_id}' is not defined")
@@ -271,7 +271,32 @@ class GotoNode(Node):
         self.execute_result = NodeExecuteResult(tape_movement=tape_move_result, tape_value=tape_value_result, new_state=next_state)
         return True
 
-    def self_check(self, tape_count: int, alphabet: List[str]) -> bool:
+    def self_check(self, states: List[str], tape_count: int, alphabet: List[str]) -> bool:
+        if self.execute_result is None:
+            self.__print_err__("No actions defined int the GOTO section.")
+            return False
+        if self.execute_result.new_state not in states:
+            self.__print_err__(f"State '{self.execute_result.new_state}' is not defined")
+            return False
+        if len(self.execute_result.tape_movement) != tape_count:
+            self.__print_err__(f"In GOTO section, there should be an action defined for each tape (found: {len(self.execute_result.tape_movement)}, expected: {tape_count})")
+            return False
+        if len(self.execute_result.tape_value) != tape_count:
+            self.__print_err__(f"In GOTO section, there should be an action defined for each tape (found: {len(self.execute_result.tape_value)}, expected: {tape_count})")
+            return False
+        for move in self.execute_result.tape_movement:
+            if move != -1 and move != 1:
+                self.__print_err__(f"Unrecognized tape move value: {move}.")
+                return False
+        for value in self.execute_result.tape_value:
+            if type(value).__name__ == "int":
+                if value < 0 or value >= tape_count:
+                    self.__print_err__(f"Tape T.{value} is undefined")
+                    return False
+            else:
+                if value not in alphabet:
+                    self.__print_err__(f"Value '{value}' is not defined in the alphabet")
+                    return False
         return True
 
 class ProgramAST:
@@ -300,9 +325,9 @@ class ProgramAST:
             if not state.does_end_with_goto():
                 self.__print_err__(f"State '{state_name}' have a path that does not result in tape action.")
                 return False
-            if not state.self_check(self.tape_count, self.alphabet):
+            if not state.self_check(list(self.nodes.keys()), self.tape_count, self.alphabet):
                 return False
-            if not state.check_children(self.tape_count, self.alphabet):
+            if not state.check_children(list(self.nodes.keys()), self.tape_count, self.alphabet):
                 return False
         return True
 
@@ -451,6 +476,8 @@ def parse_then_node(tokens_iter: Iterator[TokenValue]) -> ThenNode | None:
         print_err(f"Expected }} tag, for the section opened at line: '{begin_then_section.line.no}: {begin_then_section.line.value}', not found.", end_then_section.line)
         return None
 
+    then_node.add_line(end_then_section.line)
+
     return then_node
 
 def parse_else_node(tokens_iter: Iterator[TokenValue]) -> ElseNode | None:
@@ -471,6 +498,8 @@ def parse_else_node(tokens_iter: Iterator[TokenValue]) -> ElseNode | None:
     except StopIteration:
         print_err(f"Expected '}}' tag, for the section opened at line: '{begin_section.line.no}: {begin_section.line.value}' not found.", end_section.line)
         return None
+
+    else_node.add_line(end_section.line)
 
     return else_node
 
@@ -526,6 +555,8 @@ def parse_goto_node(tokens_iter: Iterator[TokenValue]) -> GotoNode | None:
         end_section = tokens_iter.__next__()
         if end_section.token == Token.SEPARATOR:
             end_section = tokens_iter.__next__()
+
+    goto_node.add_line(end_section.line)
 
     if not goto_node.add_execution_result(next_state, tape_actions):
         print_err(f"Failed to parse the GOTO actions.", begin_section.line)

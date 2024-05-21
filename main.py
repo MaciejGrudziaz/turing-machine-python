@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from src.config.config import load_from_file, load_from_string
 
 if __name__ != "__main__":
     exit(1)
@@ -11,6 +12,10 @@ args = parser.parse_args()
 
 if args.input is None and args.file is None:
     print("No Turing machine config specified.\nUse option -h[--help] to check all the available options.")
+    exit(1)
 
-
+if args.file is not None:
+    config = load_from_file(args.file)
+else:
+    config = load_from_string(args.input)
 
