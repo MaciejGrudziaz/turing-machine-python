@@ -4,7 +4,7 @@ from src.config.tokenizer import SectionLine, Token, TokenValue, TokenizerProgra
 from enum import Enum
 from functools import reduce
 import re
-
+......
 class NodeType(Enum):
     STATE = 0
     IF = 1
