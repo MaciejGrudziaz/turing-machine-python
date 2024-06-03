@@ -4,6 +4,8 @@ T.0 = [0, 1, 1, 1, 0]
 
 [program]
 START S0
+# END [S2, S3]
+END S2
 S0 {
   IF T.0 == "1" THEN {
     GOTO S1 {

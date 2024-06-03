@@ -5,11 +5,12 @@ from enum import Enum
 
 class Token(Enum):
     START = 0
-    GOTO = 1
-    IF = 2
-    THEN = 3
-    ELSE = 4
-    ELSE_IF = 5
+    END = 1
+    GOTO = 2
+    IF = 3
+    THEN = 4
+    ELSE = 5
+    ELSE_IF = 6
     MOV_L = 7
     MOV_R = 8
     TAB_START = 9
@@ -214,6 +215,8 @@ def __tokenize_program_section__(section: TokenizerSection) -> TokenizerProgram 
             for word in line_str.split(" "):
                 if word == "start":
                     tokens.append(TokenValue(token=Token.START, value=None, line=line))
+                elif word == "end":
+                    tokens.append(TokenValue(token=Token.END, value=None, line=line))
                 elif word == "goto":
                     tokens.append(TokenValue(token=Token.GOTO, value=None, line=line))
                 elif word == "if":

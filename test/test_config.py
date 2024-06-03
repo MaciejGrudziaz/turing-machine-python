@@ -11,6 +11,7 @@ T.0 = [a, b, c, d, 1, 3, 3, 2]
 # comment 1
 START S0
 # comment 2
+END S0
 S0 {
   IF T.0 == "1" THEN
     GOTO S1 {
@@ -35,7 +36,7 @@ S1 {
     assert result.alphabet == ["1", "2", "3", "4", "a", "b", "c", "d", "5", "6", "7", "8", "9"]
     assert len(result.tapes) == 1
     assert result.tapes[0] == ["a", "b", "c", "d", "1", "3", "3", "2"]
-    assert len(result.program_content.tokens) == 47
+    assert len(result.program_content.tokens) == 49
 
 def test_program_tokenize():
     program = r'START GOTO abc [test123: "457"]'
@@ -96,6 +97,7 @@ start s0 goto abc
 def test_program_parser():
     program = r'''
 START S0
+END S0
 S0 {
     IF T.0 == "1" && T.1 == "0" THEN {
       GOTO S0 {
@@ -133,6 +135,7 @@ S0 {
 def test_program_parser_single_if():
     program = r'''
 START S0
+END S0
 S0 {
     IF T.0 == "1" && T.1 == "0" THEN {
       GOTO S1 {
@@ -155,6 +158,7 @@ S0 {
 def test_porgram_parser_single_else():
     program = r'''
 START S0
+END S0
 S0 {
     ELSE {
       GOTO S1 {
@@ -177,6 +181,7 @@ S0 {
 def test_program_parser_if_chain():
     program = r'''
 START S0
+END S0
 S0 {
     IF T.0 == "1" THEN {
       GOTO S0 {
@@ -185,10 +190,10 @@ S0 {
     }
     ELIF T.0 == "1" THEN {
       GOTO S0 {
-        T.0: [T.1, MOV_L]
+        T.0: [T.0, MOV_L]
       }
     }
-    ELIF T.1 == "1" THEN {
+    ELIF T.0 == "1" THEN {
       GOTO S0 {
         T.0: ["0", MOV_L]
       }
@@ -210,4 +215,45 @@ S0 {
     assert result is not None
     assert result.check_syntax()
 
+def test_end_declaration():
+    program = r'''
+START S0
+END [S0, S1,]
+S0 {
+    IF T.0 == "1" THEN {
+      GOTO S0 {
+        T.0: ["0", MOV_L]
+      }
+    }
+    ELSE {
+      GOTO S1 {
+        T.0: ["0", MOV_L]
+      }
+    }
+}
+S1 {
+    IF T.0 == "1" THEN {
+      GOTO S0 {
+        T.0: ["0", MOV_L]
+      }
+    }
+    ELSE {
+      GOTO S1 {
+        T.0: ["0", MOV_L]
+      }
+    }
+}
+'''
+
+    tokenizer_result = __tokenize_program_section__(TokenizerSection(name="program", content=list(map(lambda enum_line: SectionLine(no=enum_line[0], value=enum_line[1]), enumerate(program.split("\n"))))))
+
+    assert tokenizer_result is not None
+
+    result = parse_program(tokenizer_result, 1, ["0", "1"])
+
+    assert result is not None
+    assert result.check_syntax()
+    assert 2 == len(result.end_nodes)
+    assert "s0" in result.end_nodes
+    assert "s1" in result.end_nodes
 

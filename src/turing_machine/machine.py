@@ -38,3 +38,4 @@ def build_transition_function(substring):
         transition_function[(f'q{i}', char)] = (f'q{i+1}', char, 'R')
     transition_function[(f'q{len(substring)}', '_')] = (f'q{len(substring)}', '_', 'R')
     return transition_function
+
