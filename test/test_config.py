@@ -257,3 +257,32 @@ S1 {
     assert "s0" in result.end_nodes
     assert "s1" in result.end_nodes
 
+def test_if_conditions_grouping():
+    program = r'''
+IF (T.0== "1"||T.0=="0")&&T.1=="3"||T.2!=T.1
+    '''
+
+    tokenizer_result = __tokenize_program_section__(TokenizerSection(name="program", content=list(map(lambda enum_line: SectionLine(no=enum_line[0], value=enum_line[1]), enumerate(program.split("\n"))))))
+
+    assert tokenizer_result is not None
+    assert 18 == len(tokenizer_result.tokens)
+    tokens = tokenizer_result.tokens
+    assert Token.IF == tokens[0].token
+    assert Token.GROUP_START == tokens[1].token
+    assert Token.VAR == tokens[2].token
+    assert Token.EQUAL == tokens[3].token
+    assert Token.CONST == tokens[4].token
+    assert Token.OR == tokens[5].token
+    assert Token.VAR == tokens[6].token
+    assert Token.EQUAL == tokens[7].token
+    assert Token.CONST == tokens[8].token
+    assert Token.GROUP_END == tokens[9].token
+    assert Token.AND == tokens[10].token
+    assert Token.VAR == tokens[11].token
+    assert Token.EQUAL == tokens[12].token
+    assert Token.CONST == tokens[13].token
+    assert Token.OR == tokens[14].token
+    assert Token.VAR == tokens[15].token
+    assert Token.NOT_EQUAL == tokens[16].token
+    assert Token.VAR == tokens[17].token
+

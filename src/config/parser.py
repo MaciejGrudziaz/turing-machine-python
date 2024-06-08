@@ -136,6 +136,10 @@ class StateNode(Node):
         super().__init__(NodeType.STATE, line)
         self.name = name
 
+class IfCondition:
+    def __init__(self):
+        pass
+
 class IfNode(Node):
     def __init__(self, line: SectionLine):
         super().__init__(NodeType.IF, line)
