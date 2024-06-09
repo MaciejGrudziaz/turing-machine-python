@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import List
 
 class Tape:
     def __init__(self, tape):
@@ -25,18 +26,15 @@ class Tape:
         return Tape(self.tape[:])
 
     def __str__(self):
-        tape_str = ", ".join(self.tape)
-        tape_str_with_head = tape_str[:self.head*3] + f"[{self.tape[self.head]}]" + tape_str[self.head*3 + 1:]
-        return f"[{tape_str_with_head}]"
+        return "[" + ", ".join(self.tape[:self.head]) + f"[{self.tape[self.head]}]" + ", ".join(self.tape[self.head:]) if self.head < len(self.tape) - 1 else "" + "]"
 
 class TuringMachine(ABC):
     def __init__(self, tapes, initial_state, final_states):
         self.initial_tapes = [Tape(tape) for tape in tapes]
         self.initial_state = initial_state
         self.final_states = final_states
-        self.tapes = None
-        self.state = None
-        self.reset()
+        self.tapes = [tape.clone() for tape in self.initial_tapes]
+        self.state = self.initial_state
 
     def reset(self):
         self.tapes = [tape.clone() for tape in self.initial_tapes]
@@ -49,7 +47,7 @@ class TuringMachine(ABC):
         return [tape.head for tape in self.tapes]
 
     @abstractmethod
-    def run_state(self, state, tape_values):
+    def run_state(self, state, tape_values) -> tuple[str, List[str], List[int]]:
         pass
 
     def set_tapes(self, new_values):
