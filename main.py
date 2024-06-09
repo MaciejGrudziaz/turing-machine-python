@@ -8,6 +8,7 @@ if __name__ != "__main__":
 parser = ArgumentParser(description="Turing machine for the course: Podstawy Algorytmiki, Warsaw University of Technology, Faculty of Electrical Engineering")
 parser.add_argument("--input", type=str, help="Turing machine specification in text format")
 parser.add_argument("--file", type=str, help="configuration file with the Turing machine specification")
+parser.add_argument("--debug", type=int, help="run in debug mode [DEBUG represents the debug level; available options: 0, 1 (default: 0)]")
 
 args = parser.parse_args()
 
@@ -25,12 +26,18 @@ if config is None:
     print("Failed to load config")
     exit(1)
 
-machine = ASTTuringMachine(config)
+machine = ASTTuringMachine(config, args.debug is not None and args.debug == 1)
 
 print("Machine initial state:")
 machine.print_status()
 
-machine.run_auto()
+if args.debug is not None:
+    if args.debug not in [0, 1]:
+        print(f"Unexpected debug value {args.debug}. Available options are: 0, 1")
+        exit(1)
+    machine.run_tick()
+else:
+    machine.run_auto()
 
 print("Machine finished! Final state:")
 machine.print_status()

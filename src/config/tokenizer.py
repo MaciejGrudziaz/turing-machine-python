@@ -10,7 +10,7 @@ class Token(Enum):
     IF = 'IF'
     THEN = 'THEN'
     ELSE = 'ELSE'
-    ELSE_IF = 'ELSE_IF'
+    ELSE_IF = 'ELIF'
     MOV_L = 'MOV_L'
     MOV_R = 'MOV_R'
     STAY = 'STAY'

@@ -6,8 +6,9 @@ def parse_tape_value_result(result: List[str | int], tape_value: List[str]) -> L
     return [val if type(val).__name__ == "str" else tape_value[val] for val in result]
 
 class ASTTuringMachine(TuringMachine):
-    def __init__(self, cfg: Config):
+    def __init__(self, cfg: Config, is_debug_mode: bool = False):
         self.program = cfg.program
+        self.is_debug_mode = is_debug_mode
         initial_state = cfg.program.start_node
         final_states = cfg.program.end_nodes
         if initial_state is None or final_states is None:
@@ -18,7 +19,11 @@ class ASTTuringMachine(TuringMachine):
         current_state = self.program.get_state(state)
         if current_state is None:
             raise Exception(f"State {state} is undefined")
-        result = current_state.execute(tape_values)
+        if self.is_debug_mode:
+            print("--------------------------------------------------------------------------------")
+        result = current_state.execute(tape_values, self.is_debug_mode)
+        if self.is_debug_mode:
+            print("--------------------------------------------------------------------------------")
         if result is None:
             raise Exception(f"Failed when running state {state}")
 

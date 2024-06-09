@@ -118,9 +118,9 @@ class Node:
 
         return True
 
-    def execute(self, tape_state: List[str]) -> NodeExecuteResult | None:
+    def execute(self, tape_state: List[str], is_debug_mode: bool = False) -> NodeExecuteResult | None:
         for child in self.children:
-            result = child.execute(tape_state)
+            result = child.execute(tape_state, is_debug_mode)
             if result is not None:
                 return result
 
@@ -242,12 +242,21 @@ class IfNode(Node):
             return False
         return True
 
-    def execute(self, tape_state: List[str]) -> NodeExecuteResult | None:
+    def execute(self, tape_state: List[str], is_debug_mode: bool = False) -> NodeExecuteResult | None:
+        if is_debug_mode:
+            print("    > Running IF statement")
+            print(f"{self}")
         if self.condition is None:
             return None
         if self.condition.check_condition(tape_state):
+            if is_debug_mode:
+                print("    > IF condition check is successful")
             for child in self.children:
-                return child.execute(tape_state)
+                return child.execute(tape_state, is_debug_mode)
+        else:
+            if is_debug_mode:
+                print("    > IF condition check failed")
+
         return None
 
 class ElseNode(Node):
@@ -363,7 +372,10 @@ class GotoNode(Node):
                     return False
         return True
 
-    def execute(self, tape_state: List[str]) -> NodeExecuteResult | None:
+    def execute(self, tape_state: List[str], is_debug_mode: bool = False) -> NodeExecuteResult | None:
+        if is_debug_mode:
+            print(f"    > Changing state:")
+            print(f"{self}")
         return self.execute_result
 
 class ProgramAST:
