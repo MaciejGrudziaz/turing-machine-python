@@ -298,6 +298,8 @@ class GotoNode(Node):
                 tape_movement[tape_id_val] = -1
             elif move.token == Token.MOV_R:
                 tape_movement[tape_id_val] = 1
+            elif move.token == Token.STAY:
+                tape_movement[tape_id_val] = 0
             else:
                 print_err("Wrong tape movement value. Expected MOV_L or MOV_R", move.line)
                 return False
@@ -347,7 +349,7 @@ class GotoNode(Node):
             self.__print_err__(f"In GOTO section, there should be an action defined for each tape (found: {len(self.execute_result.tape_value)}, expected: {tape_count})")
             return False
         for move in self.execute_result.tape_movement:
-            if move != -1 and move != 1:
+            if move not in [-1, 0, 1]:
                 self.__print_err__(f"Unrecognized tape move value: {move}.")
                 return False
         for value in self.execute_result.tape_value:

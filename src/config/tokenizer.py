@@ -13,6 +13,7 @@ class Token(Enum):
     ELSE_IF = 'ELSE_IF'
     MOV_L = 'MOV_L'
     MOV_R = 'MOV_R'
+    STAY = 'STAY'
     TAB_START = '['
     TAB_END = ']'
     SECTION_START = '{'
@@ -234,6 +235,8 @@ def __tokenize_program_section__(section: TokenizerSection) -> TokenizerProgram 
                     tokens.append(TokenValue(token=Token.MOV_L, value=None, line=line))
                 elif word == "mov_r":
                     tokens.append(TokenValue(token=Token.MOV_R, value=None, line=line))
+                elif word == "stay":
+                    tokens.append(TokenValue(token=Token.STAY, value=None, line=line))
                 elif word == "[":
                     tokens.append(TokenValue(token=Token.TAB_START, value=None, line=line))
                 elif word == "]":
@@ -333,6 +336,8 @@ def __parse_non_special_token__(value: str, line: SectionLine) -> TokenValue | N
         return TokenValue(token=Token.MOV_L, value=None, line=line)
     elif value == "mov_r":
         return TokenValue(token=Token.MOV_R, value=None, line=line)
+    elif value == "stay":
+        return TokenValue(token=Token.STAY, value=None, line=line)
     return TokenValue(token=Token.VAR, value=value, line=line)
 
 def __check_if_const_value__(value: str) -> bool:

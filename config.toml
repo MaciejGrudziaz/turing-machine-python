@@ -18,7 +18,7 @@ S0 {
   }
   ELSE {
     GOTO S1 {
-      T.0: [T.0, MOV_L]
+      T.0: [T.0, STAY]
     }
   }
 }
