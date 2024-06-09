@@ -99,12 +99,12 @@ def test_program_parser():
 START S0
 END S0
 S0 {
-    IF T.0 == "1" && T.1 == "0" THEN {
+    IF (T.0 == "1" && T.1 == "0") THEN {
       GOTO S0 {
         T.0: ["0", MOV_L],
         T.1: ["1", MOV_R],
       }
-    } ELIF T.0 == T.1 THEN {
+    } ELIF (T.0 == T.1) THEN {
         GOTO S0 {
           T.0: [T.1, MOV_L]
           T.1: [T.1, MOV_L]
@@ -137,7 +137,7 @@ def test_program_parser_single_if():
 START S0
 END S0
 S0 {
-    IF T.0 == "1" && T.1 == "0" THEN {
+    IF (T.0 == "1" && T.1 == "0") THEN {
       GOTO S1 {
         T.0: ["0", MOV_L],
         T.1: ["1", MOV_R],
@@ -183,17 +183,17 @@ def test_program_parser_if_chain():
 START S0
 END S0
 S0 {
-    IF T.0 == "1" THEN {
+    IF (T.0 == "1") THEN {
       GOTO S0 {
         T.0: ["0", MOV_L]
       }
     }
-    ELIF T.0 == "1" THEN {
+    ELIF (T.0 == "1") THEN {
       GOTO S0 {
         T.0: [T.0, MOV_L]
       }
     }
-    ELIF T.0 == "1" THEN {
+    ELIF (T.0 == "1") THEN {
       GOTO S0 {
         T.0: ["0", MOV_L]
       }
@@ -220,7 +220,7 @@ def test_end_declaration():
 START S0
 END [S0, S1,]
 S0 {
-    IF T.0 == "1" THEN {
+    IF (T.0 == "1") THEN {
       GOTO S0 {
         T.0: ["0", MOV_L]
       }
@@ -232,7 +232,7 @@ S0 {
     }
 }
 S1 {
-    IF T.0 == "1" THEN {
+    IF (T.0 == "1") THEN {
       GOTO S0 {
         T.0: ["0", MOV_L]
       }
@@ -285,4 +285,36 @@ IF (T.0== "1"||T.0=="0")&&T.1=="3"||T.2!=T.1
     assert Token.VAR == tokens[15].token
     assert Token.NOT_EQUAL == tokens[16].token
     assert Token.VAR == tokens[17].token
+
+def test_if_conditions_parsing():
+    program = r'''
+START S0
+END [S0]
+S0 {
+    IF (T.0 == "1" && (T.1 == "0" || T.0 == "0" && T.0 == "1") || T.0 == "0") THEN {
+      GOTO S0 {
+        T.0: ["0", MOV_L],
+        T.1: ["1", MOV_R]
+      }
+    }
+    ELSE {
+      GOTO S0 {
+        T.0: ["0", MOV_L],
+        T.1: ["1", MOV_R]
+      }
+    }
+}
+    '''
+
+    tokenizer_result = __tokenize_program_section__(TokenizerSection(name="program", content=list(map(lambda enum_line: SectionLine(no=enum_line[0], value=enum_line[1]), enumerate(program.split("\n"))))))
+
+    assert tokenizer_result is not None
+
+    for token in tokenizer_result.tokens:
+        print(f"{token.token.name} | {token.token.value}")
+
+    result = parse_program(tokenizer_result, 2, ["0", "1"])
+
+    assert result is not None
+    assert result.check_syntax()
 

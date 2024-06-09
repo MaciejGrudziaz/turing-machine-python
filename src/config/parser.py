@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, Iterator, List, Tuple
+from typing import Dict, Iterator, List, Optional, Tuple, Union
 from src.config.tokenizer import SectionLine, Token, TokenValue, TokenizerProgram, TokenizerResult
 from enum import Enum
 from functools import reduce
@@ -136,60 +136,105 @@ class StateNode(Node):
         super().__init__(NodeType.STATE, line)
         self.name = name
 
+class IfConditionType(Enum):
+    EQUAL = '=='
+    NOT_EQUAL = '!='
+
+# tree representing the IF statement
+#    conditions objects on the same level (siblings) represents the OR relation
+#    children objects of the IfCondition represents the AND relation
 class IfCondition:
-    def __init__(self):
-        pass
+    def __init__(self, cond_type: IfConditionType, lhs: int, rhs: int | str):
+        self.type = cond_type
+        self.lhs = lhs
+        self.rhs = rhs
+        self.next = None
+        self.down = None
+
+    def add_child(self, cond):
+        self.down = cond
+
+    def add_sibling(self, cond):
+        self.next = cond
+
+    def _get_lhs(self, tapes_values: List[str]) -> str:
+        return tapes_values[self.lhs]
+
+    def _get_rhs(self, tapes_values: List[str]) -> str:
+        if type(self.rhs).__name__ == "int":
+            return tapes_values[self.rhs]
+        return self.rhs
+
+    def self_check_syntax(self, tape_count: int, alphabet: List[str]) -> bool:
+        if self.lhs < 0 or self.lhs >= tape_count:
+            raise Exception(f"Tape T.{self.lhs} is not defined")
+        if type(self.rhs).__name__ == "int":
+            if self.rhs < 0 or self.rhs >= tape_count:
+                raise Exception(f"Tape T.{self.rhs} is not defined")
+        else:
+            if self.rhs not in alphabet:
+                raise Exception(f"Value '{self.rhs}' is not defined in the alphabet.")
+
+        if self.down is not None:
+            self.down.self_check_syntax(tape_count, alphabet)
+        if self.next is not None:
+            self.next.self_check_syntax(tape_count, alphabet)
+
+    def check_condition(self, tapes_values: List[str]) -> bool:
+        if self.lhs is None:
+            raise Exception("Left side condition argument is undefined")
+        if self.rhs is None:
+            raise Exception("Right side condition argument is undefined")
+        if self.type == IfConditionType.EQUAL:
+            if self._get_lhs(tapes_values) != self._get_rhs(tapes_values):
+                if self.next is not None:
+                    return self.next.check_condition(tapes_values)
+                return False
+        if self.type == IfConditionType.NOT_EQUAL:
+            if self._get_lhs(tapes_values) == self._get_rhs(tapes_values):
+                if self.next is not None:
+                    return self.next.check_condition(tapes_values)
+                return False
+
+        if self.down is not None:
+            return self.down.check_condition(tapes_values)
+
+        return True
+
+    def __str__(self):
+        res = ""
+        if self.down is not None:
+            res += f"({self.lhs} {self.type} {self.rhs} && ({self.down}))"
+        if self.next is not None:
+            if self.down is not None:
+                res += f" || {self.next}"
+            else:
+                res += f"{self.lhs} {self.type} {self.rhs} || {self.next}"
+        elif self.down is None:
+            res += f"{self.lhs} {self.type} {self.rhs}"
+
+        return res
 
 class IfNode(Node):
     def __init__(self, line: SectionLine):
         super().__init__(NodeType.IF, line)
-        self.conditions = []
+        self.condition: Optional[IfCondition] = None
 
     def change_to_elif(self):
         self.node_type = NodeType.ELIF
 
-    def add_condition_const(self, tape_id: TokenValue, val: TokenValue) -> bool:
-        if tape_id.value is None or val.value is None:
-            return False
-
-        tape_id_val = get_tape_id(tape_id)
-        if tape_id_val is None:
-            return False
-        self.conditions.append((tape_id_val, val.value))
-
-        self.add_line(tape_id.line)
-        self.add_line(val.line)
-        return True
-
-    def add_condition_ref(self, tape_id: TokenValue, ref_tape_id: TokenValue) -> bool:
-        if tape_id.value is None or ref_tape_id.value is None:
-            return False
-
-        tape_id_val = get_tape_id(tape_id)
-        ref_tape_id_val = get_tape_id(ref_tape_id)
-        if tape_id_val is None or ref_tape_id_val is None:
-            return False
-
-        self.conditions.append((tape_id_val, ref_tape_id_val))
-
-        self.add_line(tape_id.line)
-        self.add_line(ref_tape_id.line)
-        return True
+    def set_condition(self, cond: IfCondition):
+        self.condition = cond
 
     def self_check(self, states: List[str], tape_count: int, alphabet: List[str]) -> bool:
-        for tape_id, val in self.conditions:
-            if tape_id < 0 or tape_id >= tape_count:
-                self.__print_err__(f"Tape 'T.{tape_id}' is not defined")
-                return False
-            if type(val).__name__ == "int":
-                if val < 0 or val >= tape_count:
-                    self.__print_err__(f"Tape 'T.{val}' is not defined")
-                    return False
-            else:
-                if val not in alphabet:
-                    self.__print_err__(f"Value '{val}' is not defined in the alphabet")
-                    return False
-
+        if self.condition is None:
+            self.__print_err__(f"No condition defined for the IF statement.")
+            return False
+        try:
+            self.condition.self_check_syntax(tape_count, alphabet)
+        except Exception as e:
+            self.__print_err__(f"{e}")
+            return False
         return True
 
 class ElseNode(Node):
@@ -460,48 +505,36 @@ def parse_node(current_token: TokenValue, tokens_iter: Iterator[TokenValue]) -> 
         return None
 
 def parse_if_node(tokens_iter: Iterator[TokenValue], is_elif: bool) -> IfNode | None:
-    then_token = tokens_iter.__next__()
-    if_node = IfNode(then_token.line)
+    start_group_token = tokens_iter.__next__()
+    if_node = IfNode(start_group_token.line)
     if is_elif:
         if_node.change_to_elif()
 
     try:
-        while then_token.token != Token.THEN:
-            if then_token.token == Token.AND:
-                lhs = tokens_iter.__next__()
-            else:
-                lhs = then_token
-            if lhs.token != Token.VAR:
-                print_err("In IF statement, left side argument must be a variable.", lhs.line)
-                return None
-            if lhs.token.value is  None:
-                print_err("Missing variable name declaration", lhs.line)
-                return None
-            comp = tokens_iter.__next__()
-            if comp.token not in [Token.EQUAL, Token.NOT_EQUAL]:
-                print_err("Unexpected comparision token. Expected values are: '==' and '!='", comp.line)
-                return None
-            rhs = tokens_iter.__next__()
-            if rhs.token == Token.CONST:
-                if rhs.token.value is None:
-                    print_err("Missing const value definition", rhs.line)
-                    return None
-                if not if_node.add_condition_const(lhs, rhs):
-                    print_err("Wrong format of tape reference, expected: T.<n>", rhs.line)
-                    return None
-            elif rhs.token == Token.VAR:
-                if rhs.token.value is None:
-                    print_err("Missing variable name declaration", lhs.line)
-                    return None
-                if not if_node.add_condition_ref(lhs, rhs):
-                    print_err("Wrong format of tape reference, expects: T.<n>", rhs.line)
-                    return None
-            else:
-                print_err("In IF statement, right side argument must be either a variable or a const value", rhs.line)
-                return None
-            then_token = tokens_iter.__next__()
+        if start_group_token.token != Token.GROUP_START:
+            print(f"start_group: {start_group_token}")
+            print_err("IF statement condition must be inside parenthesis ('(...)').", start_group_token.line)
+            return None
+        if_cond_group = parse_if_node_group(start_group_token, tokens_iter)
+        if if_cond_group is None:
+            print_err("First pass of the IF statement parser failed", start_group_token.line)
+            return None
+        if_cond_group = parse_condition_group(if_cond_group)
+        if if_cond_group is None:
+            print_err("Second pass of the IF statement parser failed", start_group_token.line)
+            return None
+        if_cond = parse_condition_group_into_if_condition(if_cond_group)
+        if if_cond is None:
+            print_err("Fail while parsing IF condition into nodes", start_group_token.line)
+            return None
+        if_node.set_condition(if_cond)
+        then_token = tokens_iter.__next__()
+        if_node.add_line(then_token.line)
+        if then_token.token != Token.THEN:
+            print_err("IF condition group must be followed with the THEN statement.", then_token.line)
+            return None
     except StopIteration:
-        print_err("Expected THEN tag after IF statement", then_token.line)
+        print_err("Expected THEN tag after IF statement", start_group_token.line)
         return None
 
     then_node = parse_then_node(tokens_iter)
@@ -510,6 +543,232 @@ def parse_if_node(tokens_iter: Iterator[TokenValue], is_elif: bool) -> IfNode | 
     if_node.add_child(then_node)
 
     return if_node
+
+class IfNodeConditionToken(Enum):
+    AND = '&&'
+    OR = '||'
+
+class ConditionCompOp:
+    def __init__(self, comp_token: IfConditionType, lhs: int, rhs: int | str):
+        self.comp = comp_token
+        self.lhs = lhs
+        self.rhs = rhs
+
+    def __str__(self):
+        return f"{self.lhs} {self.comp.value} {self.rhs}"
+
+class ConditionGroup:
+    # first_condition: IfNodeCondition
+    def __init__(self, first_condition):
+        self.first = first_condition
+
+    def __str__(self):
+        return f"({self.first})"
+
+class ConditionArg:
+    def __init__(self):
+        self.comp_op: Optional[ConditionCompOp] = None
+        self.cond_group: Optional[ConditionGroup] = None
+
+    def is_comp_op(self) -> bool:
+        return self.cond_group is None and self.comp_op is not None
+
+    def is_cond_group(self) -> bool:
+        return self.cond_group is not None
+
+    def __str__(self):
+        if self.cond_group is not None:
+            return f"{self.cond_group}"
+        else:
+            return f"{self.comp_op}"
+
+class IfNodeCondition:
+    def __init__(self, cond_type: IfNodeConditionToken | None = None):
+        self.type: Optional[IfNodeConditionToken] = cond_type
+        self.lhs: Optional[ConditionArg] = None
+        self.rhs: Optional[ConditionArg] = None
+        self.next: Optional[IfNodeCondition] = None
+        self.prev: Optional[IfNodeCondition] = None
+
+    def __str__(self):
+        return f"{self.lhs} {self.type} {self.rhs} | {self.next}"
+
+def get_if_condition_type_from_token(comp_token: TokenValue) -> IfConditionType | None:
+    if comp_token.token == Token.EQUAL:
+        return IfConditionType.EQUAL
+    if comp_token.token == Token.NOT_EQUAL:
+        return IfConditionType.NOT_EQUAL
+    return None
+
+def get_if_bool_op_token_from_token(bool_token: TokenValue) -> IfNodeConditionToken | None:
+    if bool_token.token == Token.AND:
+        return IfNodeConditionToken.AND
+    if bool_token.token == Token.OR:
+        return IfNodeConditionToken.OR
+    return None
+
+def parse_if_node_group(current_token: TokenValue, tokens_iter: Iterator[TokenValue]) -> ConditionGroup | None:
+    current_cond: Optional[IfNodeCondition] = None
+    lhs_arg: Optional[ConditionArg] = None
+    while current_token.token != Token.GROUP_END:
+        if current_token.token == Token.AND or current_token.token == Token.OR:
+            if lhs_arg is None:
+                print_err(f"Bool operation ('||' or '&&') must be preceded by a comparision operation or another condition group '(...)'", current_token.line)
+                return None
+            bool_op_token = get_if_bool_op_token_from_token(current_token)
+            if bool_op_token is None:
+                print_err(f"Unrecognized bool operation for token {current_token}.", current_token.line)
+                return None
+            new_cond = IfNodeCondition(bool_op_token)
+            if current_cond is not None:
+                current_cond.rhs = lhs_arg
+                new_cond.prev = current_cond
+                current_cond.next = new_cond
+            current_cond = new_cond
+            current_cond.lhs = lhs_arg
+
+        lhs = tokens_iter.__next__()
+        if lhs.token == Token.GROUP_START:
+            cond_group = parse_if_node_group(lhs, tokens_iter)
+            if cond_group is None:
+                return None
+            lhs_arg = ConditionArg()
+            lhs_arg.cond_group = cond_group
+            current_token = tokens_iter.__next__()
+            continue
+
+        comp = tokens_iter.__next__()
+        rhs = tokens_iter.__next__()
+
+        if lhs.token != Token.VAR:
+            print_err(f"Expected tape reference, found '{lhs.token.value}'", lhs.line)
+            return None
+        if_cond_type = get_if_condition_type_from_token(comp)
+        if if_cond_type is None:
+            print_err(f"Expected '==' or '!=' comparision operator, found '{comp.token.value}'", comp.line)
+            return None
+        if rhs.token != Token.VAR and rhs.token != Token.CONST:
+            print_err(f"Expected tape reference or const value, found '{rhs.token.value}'", rhs.line)
+            return None
+        if rhs.value is None:
+            print_err(f"No value defined for token '{rhs.token}", rhs.line)
+            return None
+        lhs_tape_id = get_tape_id(lhs)
+        if lhs_tape_id is None:
+            print_err(f"Wrong format of tape reference. Expected 'T.<n>'.", lhs.line)
+            return None
+        if rhs.token == Token.CONST:
+            lhs_arg = ConditionArg()
+            lhs_arg.comp_op = ConditionCompOp(if_cond_type, lhs_tape_id, rhs.value)
+        else:
+            rhs_tape_id = get_tape_id(rhs)
+            if rhs_tape_id is None:
+                print_err(f"Wrong format of tape reference. Expected 'T.<n>'.", rhs.line)
+                return None
+            lhs_arg = ConditionArg()
+            lhs_arg.comp_op = ConditionCompOp(if_cond_type, lhs_tape_id, rhs_tape_id)
+
+        current_token = tokens_iter.__next__()
+
+    if current_cond is not None:
+        if lhs_arg is None:
+            print_err(f"Missing right side argument for bool operation.", current_token.line)
+            return None
+        current_cond.rhs = lhs_arg
+
+    if current_cond is None:
+        current_cond = IfNodeCondition()
+        current_cond.lhs = lhs_arg
+
+    while current_cond.prev is not None:
+        current_cond = current_cond.prev
+
+    return ConditionGroup(current_cond)
+
+def parse_condition_group(group: ConditionGroup) -> ConditionGroup | None:
+    cond_iter: IfNodeCondition | None = group.first
+    prev_cond_iter: IfNodeCondition | None = group.first
+
+    if cond_iter is not None and cond_iter.prev is None and cond_iter.next is None:
+        return group
+
+    while cond_iter is not None:
+        if cond_iter.lhs is not None and cond_iter.lhs.is_cond_group():
+            new_group = parse_condition_group(cond_iter.lhs.cond_group)
+            new_arg = ConditionArg()
+            new_arg.cond_group = new_group
+            cond_iter.lhs = new_arg
+        if cond_iter.rhs is not None and cond_iter.rhs.is_cond_group():
+            new_group = parse_condition_group(cond_iter.rhs.cond_group)
+            new_arg = ConditionArg()
+            new_arg.cond_group = new_group
+            cond_iter.rhs = new_arg
+        if cond_iter.type == IfNodeConditionToken.AND:
+            new_group = ConditionGroup(cond_iter)
+            new_arg = ConditionArg()
+            new_arg.cond_group = new_group
+            prev_cond = cond_iter.prev
+            next_cond = cond_iter.next
+            if prev_cond is not None:
+                prev_cond.rhs = new_arg
+                prev_cond.next = next_cond
+            if next_cond is not None:
+                next_cond.lhs = new_arg
+                next_cond.prev = prev_cond
+
+            new_group.first.prev = None
+            new_group.first.next = None
+            prev_cond_iter = prev_cond
+            cond_iter = next_cond
+        else:
+            prev_cond_iter = cond_iter
+            cond_iter = cond_iter.next
+
+
+    if prev_cond_iter is None:
+        return None
+    while prev_cond_iter.prev is not None:
+        prev_cond_iter = prev_cond_iter.prev
+
+    return ConditionGroup(prev_cond_iter)
+
+def parse_condition_group_into_if_condition(group: ConditionGroup) -> IfCondition | None:
+    cond_iter: IfNodeCondition | None = group.first
+    first: IfCondition | None = None
+    if_cond: IfCondition | None = None
+    while cond_iter is not None:
+        left_arg = cond_iter.lhs
+        comp = cond_iter.type
+        right_arg = cond_iter.rhs
+        if left_arg is None:
+            return None
+        if comp is None:
+            return parse_if_condition(left_arg)
+        if right_arg is None:
+            return None
+        if if_cond is None:
+            if_cond = parse_if_condition(left_arg)
+            first = if_cond
+            if if_cond is None:
+                return None
+        right_side_if_cond = parse_if_condition(right_arg)
+        if cond_iter.type == IfNodeConditionToken.OR:
+            if_cond.next = right_side_if_cond
+            if_cond = right_side_if_cond
+        else:
+            if_cond.down = right_side_if_cond
+        cond_iter = cond_iter.next
+
+    return first
+
+def parse_if_condition(arg: ConditionArg) -> IfCondition | None:
+    if arg.is_cond_group():
+        return parse_condition_group_into_if_condition(arg.cond_group)
+
+    if arg.comp_op is None:
+        return None
+
+    return IfCondition(arg.comp_op.comp, arg.comp_op.lhs, arg.comp_op.rhs)
 
 def parse_then_node(tokens_iter: Iterator[TokenValue]) -> ThenNode | None:
     begin_then_section = tokens_iter.__next__()
