@@ -118,8 +118,13 @@ class Node:
 
         return True
 
-    def execute(self, tape_state: List[str]) -> NodeExecuteResult:
-        return NodeExecuteResult(tape_movement=[1 for _ in range(len(tape_state))], new_state="", tape_value=[v for v in tape_state])
+    def execute(self, tape_state: List[str]) -> NodeExecuteResult | None:
+        for child in self.children:
+            result = child.execute(tape_state)
+            if result is not None:
+                return result
+
+        return None
 
     def self_check(self, states: List[str], tape_count: int, alphabet: List[str]) -> bool:
         return True
@@ -237,6 +242,14 @@ class IfNode(Node):
             return False
         return True
 
+    def execute(self, tape_state: List[str]) -> NodeExecuteResult | None:
+        if self.condition is None:
+            return None
+        if self.condition.check_condition(tape_state):
+            for child in self.children:
+                return child.execute(tape_state)
+        return None
+
 class ElseNode(Node):
     def __init__(self, line: SectionLine):
         super().__init__(NodeType.ELSE, line)
@@ -348,6 +361,9 @@ class GotoNode(Node):
                     return False
         return True
 
+    def execute(self, tape_state: List[str]) -> NodeExecuteResult | None:
+        return self.execute_result
+
 class ProgramAST:
     def __init__(self, tape_count: int, alphabet: List[str]):
         self.alphabet = alphabet
@@ -379,13 +395,17 @@ class ProgramAST:
 
         for state_name, state in self.nodes.items():
             if not state.does_end_with_goto():
-                self.__print_err__(f"State '{state_name}' have a path that does not result in tape action.")
-                return False
+                if state_name not in self.end_nodes:
+                    self.__print_err__(f"State '{state_name}' have a path that does not result in tape action.")
+                    return False
             if not state.self_check(list(self.nodes.keys()), self.tape_count, self.alphabet):
                 return False
             if not state.check_children(list(self.nodes.keys()), self.tape_count, self.alphabet):
                 return False
         return True
+
+    def get_state(self, name: str) -> Node | None:
+        return self.nodes[name]
 
     def __check_end_nodes__(self) -> bool:
         if len(self.end_nodes) == 0:

@@ -1,6 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import List
 
+RED =  '\033[91m'
+BOLD = '\033[1m'
+RESET = '\033[0m'
+RED_BOLD = RED + BOLD
+
 class Tape:
     def __init__(self, tape):
         self.tape = tape
@@ -26,7 +31,10 @@ class Tape:
         return Tape(self.tape[:])
 
     def __str__(self):
-        return "[" + ", ".join(self.tape[:self.head]) + f"[{self.tape[self.head]}]" + ", ".join(self.tape[self.head:]) if self.head < len(self.tape) - 1 else "" + "]"
+        prefix = ", ".join(self.tape[:self.head]) + ", " if self.head > 0 else ''
+        head = f"{RED_BOLD}{self.tape[self.head]}{RESET}"
+        suffix = ", " + ", ".join(self.tape[self.head + 1:]) if self.head < len(self.tape) - 1 else ""
+        return f"[{prefix}{head}{suffix}]"
 
 class TuringMachine(ABC):
     def __init__(self, tapes, initial_state, final_states):
@@ -47,7 +55,7 @@ class TuringMachine(ABC):
         return [tape.head for tape in self.tapes]
 
     @abstractmethod
-    def run_state(self, state, tape_values) -> tuple[str, List[str], List[int]]:
+    def run_state(self, state: str, tape_values: List[str]) -> tuple[str, List[str], List[int]]:
         pass
 
     def set_tapes(self, new_values):
@@ -80,9 +88,9 @@ class TuringMachine(ABC):
 
     def run_tick(self):
         while self.state not in self.final_states:
+            self.print_status()
             input("Press Enter to execute the next step...")
             self.step()
-            self.print_status()
 
     def print_status(self):
         tapes_str = ' | '.join([str(tape) for tape in self.tapes])

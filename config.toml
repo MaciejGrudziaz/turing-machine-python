@@ -1,27 +1,27 @@
 [tape]
-alphabet = [0, 1]
-T.0 = [0, 1, 1, 1, 0]
+alphabet = [0, 1, _]
+T.0 = [0, 0, 0, 0, 1, _]
 
 [program]
 START S0
-# END [S2, S3]
-END S2
+END [S1]
 S0 {
-  IF T.0 == "1" THEN {
-    GOTO S1 {
+  IF (T.0 == "1") THEN {
+    GOTO S0 {
       T.0: ["0", MOV_R]
+    }
+  }
+  ELIF (T.0 == "0") THEN {
+    GOTO S0 {
+      T.0: ["1", MOV_R]
     }
   }
   ELSE {
     GOTO S1 {
-      T.0: ["1", MOV_R]
+      T.0: [T.0, MOV_L]
     }
   }
 }
 
-S1 {
-  GOTO S0 {
-    T.0: [T.0, MOV_L]
-  }
-}
+S1 {}
 

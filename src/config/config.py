@@ -31,8 +31,6 @@ def load_from_file(filepath: str) -> Config | None:
     return load_from_string("".join(file_content))
 
 def load_from_string(config: str) -> Config | None:
-    print(f"Loaded config:\n{config}")
-
     tokenizer_result = tokenize(config)
     if tokenizer_result is None:
         return None
