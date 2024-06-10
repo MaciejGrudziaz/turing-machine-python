@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List
-from src.config.tokenizer import tokenize
-from src.config.parser import parse_program, ProgramAST
+from src.compiler.tokenizer.tokenizer import tokenize
+from src.compiler.parser.program_ast import parse_program, ProgramAST
 
 @dataclass
 class Config:
