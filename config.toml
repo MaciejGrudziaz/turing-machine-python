@@ -1,27 +1,101 @@
 [tape]
-alphabet = [0, 1, _]
-T.0 = [0, 0, 0, 0, 1, _]
+alphabet = [a-z, A-Z, 0, 1, _, $, ^]
+T.0 = [^, t, o, _, j, e, s, t, _, p, r, z, y, k, l, a, d, _, d, a, l, s, z, y, _, t, e, k, s, t, $]
+T.1 = [^, p, r, z, y, k, l, a, d, $]
+T.2 = [^, 0, 0, 0, 0, 0, 0, 0, 0, $]
 
 [program]
-START S0
-END [S1]
-S0 {
-  IF (T.0 == "1") THEN {
-    GOTO S0 {
-      T.0: ["0", MOV_R]
+START poczatek
+END [znaleziono, nie_znaleziono]
+
+poczatek {
+    GOTO przejdz_na_koniec_t2 {
+        T.0: [T.0, MOV_R],
+        T.1: [T.1, MOV_R],
+        T.2: [T.2, MOV_R],
     }
-  }
-  ELIF (T.0 == "0") THEN {
-    GOTO S0 {
-      T.0: ["1", MOV_R]
-    }
-  }
-  ELSE {
-    GOTO S1 {
-      T.0: [T.0, STAY]
-    }
-  }
 }
 
-S1 {}
+wyszukiwanie {
+    IF (T.1 == "$") THEN {
+        GOTO inkrementuj_t2 {}
+    } ELIF (T.0 == "$") THEN {
+        GOTO nie_znaleziono {}
+    } ELIF (T.0 == T.1) THEN {
+        GOTO wyszukiwanie {
+            T.0: [T.0, MOV_R],
+            T.1: [T.1, MOV_R],
+        }
+    } ELSE {
+        GOTO inkrementuj_t2 {}
+    }
+}
+
+sprawdzenie_po_inkrementacji_t2 {
+    IF (T.1 == "$") THEN {
+        GOTO znaleziono {}
+    } ELIF (T.0 == "$") THEN {
+        GOTO nie_znaleziono {}
+    } ELIF (T.1 == "^") THEN {
+        GOTO wyszukiwanie {
+            T.0: [T.0, MOV_R],
+            T.1: [T.1, MOV_R]
+        }
+    } ELSE {
+        GOTO przejdz_na_poczatek_t1 {
+            T.1: [T.1, MOV_L],
+        }
+    }
+}
+
+przejdz_na_poczatek_t1 {
+    IF (T.1 == "^") THEN {
+        GOTO inkrementuj_t2 {
+            T.0: [T.0, MOV_R]
+        }
+    } ELSE {
+        GOTO inkrementuj_t2 {
+            T.1: [T.1, MOV_L],
+        }
+    }
+}
+
+inkrementuj_t2 {
+    IF (T.2 == "1") THEN {
+        GOTO przepelnienie_t2 {
+            T.2: ["0", MOV_L],
+        }
+    } ELSE {
+         GOTO przejdz_na_koniec_t2 {
+             T.2: ["1", STAY],
+         }
+    }
+}
+
+przepelnienie_t2 {
+    IF (T.2 == "1") THEN {
+        GOTO przepelnienie_t2 {
+            T.2: ["0", MOV_L],
+        }
+    } ELSE {
+        GOTO przejdz_na_koniec_t2 {
+            T.2: ["1", STAY],
+        }
+    }
+}
+
+przejdz_na_koniec_t2 {
+    IF (T.2 == "$") THEN {
+        GOTO sprawdzenie_po_inkrementacji_t2 {
+            T.2: [T.2, MOV_L],
+        }
+    } ELSE {
+        GOTO przejdz_na_koniec_t2 {
+            T.2: [T.2, MOV_R],
+        }
+    }
+}
+
+znaleziono {}
+nie_znaleziono {}
 

@@ -5,7 +5,7 @@ from src.turing_machine.ast_turing_machine import ASTTuringMachine
 if __name__ != "__main__":
     exit(1)
 
-parser = ArgumentParser(description="Turing machine for the course: Podstawy Algorytmiki, Warsaw University of Technology, Faculty of Electrical Engineering")
+parser = ArgumentParser(description="Turing machine created as an exercise for the course 'Podstawy Algorytmiki' at Warsaw University of Technology, Faculty of Electrical Engineering")
 parser.add_argument("--input", type=str, help="Turing machine specification in text format")
 parser.add_argument("--file", type=str, help="configuration file with the Turing machine specification")
 parser.add_argument("--debug", type=int, help="run in debug mode [DEBUG represents the debug level; available options: 0, 1 (default: 0)]")
@@ -39,6 +39,7 @@ if args.debug is not None:
 else:
     machine.run_auto()
 
+print("--------------------------------------------------------------------------------")
 print("Machine finished! Final state:")
 machine.print_status()
 

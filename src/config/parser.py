@@ -271,6 +271,9 @@ class GotoNode(Node):
     def __init__(self, line: SectionLine):
         super().__init__(NodeType.GOTO, line)
         self.execute_result = None
+        self.next_state = None
+        self.tape_values = {}
+        self.tape_movement = {}
 
     def add_execution_result(self, next_state: TokenValue, actions: List[Tuple[TokenValue, TokenValue, TokenValue]]) -> bool:
         if next_state.value is None:
@@ -292,13 +295,13 @@ class GotoNode(Node):
                 print_err(f"Wrong next tape value format. Expected variable or const value declaration.", value_token.line)
                 return False
             if value_token.token == Token.CONST:
-                tape_values[tape_id_val] = (value_token.value, value_token.line)
+                tape_values[tape_id_val] = value_token.value
             elif value_token.token == Token.VAR:
                 value = get_tape_id(value_token)
                 if value is None:
                     print_err("Wrong tape reference format, in next tape value declaration. Expected: T.<n>", value_token.line)
                     return False
-                tape_values[tape_id_val] = (value, value_token.line)
+                tape_values[tape_id_val] = value
             else:
                 print_err("Wrong next tape value format. Exepected variable or const value declaration.", value_token.line)
                 return False
@@ -317,45 +320,25 @@ class GotoNode(Node):
             self.add_line(value_token.line)
             self.add_line(move.line)
 
-        if not self.__parse_execution_results__(next_state.value, tape_movement, tape_values):
+        if not self.__set_goto_state_actions__(next_state.value, tape_movement, tape_values):
             return False
 
         return True
 
-    def __parse_execution_results__(self, next_state: str, tape_movement: Dict[int, int], tape_values: Dict[int, Tuple[str | int, SectionLine]]) -> bool:
-        tape_move_result = []
-        tape_value_result = []
-        for tape_id, value in sorted(list(tape_values.items()), key=lambda val: val[0]):
-            if tape_id >= len(tape_values):
-                print_err(f"Tape id T.{tape_id} is out of range", value[1])
-                return False
-            elif tape_id < 0:
-                print_err(f"Tape id T.{tape_id} is out of range", value[1])
-                return False
-
-            if tape_id not in tape_movement:
-                print_err("Tape movement is not defined", value[1])
-                return False
-            tape_move = tape_movement[tape_id]
-
-            tape_value_result.append(value[0])
-            tape_move_result.append(tape_move)
-
-        self.execute_result = NodeExecuteResult(tape_movement=tape_move_result, tape_value=tape_value_result, new_state=next_state)
+    def __set_goto_state_actions__(self, next_state: str, tape_movement: Dict[int, int], tape_values: Dict[int, str | int]) -> bool:
+        self.next_state = next_state
+        self.tape_values = tape_values
+        self.tape_movement = tape_movement
         return True
 
     def self_check(self, states: List[str], tape_count: int, alphabet: List[str]) -> bool:
-        if self.execute_result is None:
-            self.__print_err__("No actions defined int the GOTO section.")
+        execute_result = self.__parse_execute_result__(tape_count)
+        if execute_result is None:
             return False
+        self.execute_result = execute_result
+
         if self.execute_result.new_state not in states:
             self.__print_err__(f"State '{self.execute_result.new_state}' is not defined")
-            return False
-        if len(self.execute_result.tape_movement) != tape_count:
-            self.__print_err__(f"In GOTO section, there should be an action defined for each tape (found: {len(self.execute_result.tape_movement)}, expected: {tape_count})")
-            return False
-        if len(self.execute_result.tape_value) != tape_count:
-            self.__print_err__(f"In GOTO section, there should be an action defined for each tape (found: {len(self.execute_result.tape_value)}, expected: {tape_count})")
             return False
         for move in self.execute_result.tape_movement:
             if move not in [-1, 0, 1]:
@@ -371,6 +354,26 @@ class GotoNode(Node):
                     self.__print_err__(f"Value '{value}' is not defined in the alphabet")
                     return False
         return True
+
+    def __parse_execute_result__(self, tape_count: int) -> NodeExecuteResult | None:
+        tape_values = []
+        tape_mov = []
+
+        if self.next_state is None:
+            self.__print_err__("Next state is not defined")
+            return None
+
+        for i in range(tape_count):
+            val = self.tape_values.get(i)
+            move = self.tape_movement.get(i)
+            if val is None or move is None:
+                tape_values.append(i)
+                tape_mov.append(0)
+            else:
+                tape_values.append(val)
+                tape_mov.append(move)
+
+        return NodeExecuteResult(tape_movement=tape_mov, tape_value=tape_values, new_state=self.next_state)
 
     def execute(self, tape_state: List[str], is_debug_mode: bool = False) -> NodeExecuteResult | None:
         if is_debug_mode:
@@ -910,4 +913,5 @@ def parse_goto_node(tokens_iter: Iterator[TokenValue]) -> GotoNode | None:
         print_err(f"Failed to parse the GOTO actions.", begin_section.line)
         return None
     return goto_node
+
 
