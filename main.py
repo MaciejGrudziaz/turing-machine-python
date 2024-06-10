@@ -31,13 +31,17 @@ machine = ASTTuringMachine(config, args.debug is not None and args.debug == 1)
 print("Machine initial state:")
 machine.print_status()
 
-if args.debug is not None:
-    if args.debug not in [0, 1]:
-        print(f"Unexpected debug value {args.debug}. Available options are: 0, 1")
-        exit(1)
-    machine.run_tick()
-else:
-    machine.run_auto()
+try:
+    if args.debug is not None:
+        if args.debug not in [0, 1]:
+            print(f"Unexpected debug value {args.debug}. Available options are: 0, 1")
+            exit(1)
+        machine.run_tick()
+    else:
+        machine.run_auto()
+except Exception as e:
+    print(f"Error occurred during machine runtime: {e}")
+    exit(2)
 
 print("--------------------------------------------------------------------------------")
 print("Machine finished! Final state:")

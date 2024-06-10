@@ -141,6 +141,12 @@ class StateNode(Node):
         super().__init__(NodeType.STATE, line)
         self.name = name
 
+    def execute(self, tape_state: List[str], is_debug_mode: bool = False) -> NodeExecuteResult | None:
+        if is_debug_mode:
+            print(f"    > Current state: {self.name}")
+            print(f"{self}")
+        return super().execute(tape_state, is_debug_mode)
+
 class IfConditionType(Enum):
     EQUAL = '=='
     NOT_EQUAL = '!='
@@ -262,6 +268,12 @@ class IfNode(Node):
 class ElseNode(Node):
     def __init__(self, line: SectionLine):
         super().__init__(NodeType.ELSE, line)
+
+    def execute(self, tape_state: List[str], is_debug_mode: bool = False) -> NodeExecuteResult | None:
+        if is_debug_mode:
+            print("    > Running ELSE statement")
+            print(f"{self}")
+        return super().execute(tape_state, is_debug_mode)
 
 class ThenNode(Node):
     def __init__(self, line: SectionLine):
