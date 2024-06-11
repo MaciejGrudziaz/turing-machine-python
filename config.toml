@@ -1,130 +1,177 @@
 [tape]
-alphabet = [a-z, A-Z, 0-9, _, $, ^]
+alphabet = [a-z, A-Z, 0-9, _, ^, $]
 # tape with the input text
 T.0 = [^, a, b, c, _, t, e, t, e, s, _, d, a, l, s, z, y, _, t, e, k, s, t, _, t, e, s, t, _, p, r, z, y, k, l, a, d, $]
 # tape with a pattern to find in the input text
 T.1 = [^, t, e, s, t, $]
-# tape representing the index in the input text, where the pattern starts (if final state is 'ok_znaleziono')
+# tape representing the index in the input text, where the pattern starts (if final state is 'ok_found')
+# if the pattern wasn't found, it stores the length of the input text
 T.2 = [^, 0, 0, 0, $]
 
 [program]
-START przejdz_na_koniec_t2
-END [ok_znaleziono, ok_nie_znaleziono, err_przepelnienie_licznika, err_bledna_wartosc_w_liczniku]
+START check_initial_conditions
+# end states starting with 'ok_*' mark the valid end state of the machine (algorithm finished successfully)
+# the states with the 'err_*' prefix are the error states (during the algorithm runtime an unexpected
+# situation has occurred and the algorithm couldn't continue)
+END [ok_found, ok_not_found, err_index_overflow, err_index_unexpected_value, err_format_tape_0, err_format_tape_1, err_format_tape_2]
+
+# checking if the first character of each tape is '^' which is used further as a marker
+# of the beginning of the tape
+check_initial_conditions {
+    IF (T.0 != "^") THEN {
+        GOTO err_format_tape_0 {}
+    } ELIF (T.1 != "^") THEN {
+        GOTO err_format_tape_1 {}
+    } ELIF (T.2 != "^") THEN {
+        GOTO err_format_tape_2 {}
+    } ELSE {
+        # if all tapes are correctly formatted, now move the heads of the tapes to the default positions
+        GOTO move_to_end_tape_2 {}
+    }
+}
 
 # main loop
 # iterating over the tape 0 (tape with the input text)
-wyszukiwanie {
-    # if current value on tape 0 is '$', this means that we have reached the end of the input text and we didn't find the pattern in the text
-    # go to the final state 'nie_znaleziono'
+search {
+    # if current value on tape 0 is '$', this means that we have reached the end of the input text
+    # and we didn't find the pattern in the text, the algorithm ends
     IF (T.0 == "$") THEN {
-        GOTO ok_nie_znaleziono {}
+        GOTO ok_not_found {}
     }
-    # if the current value on the tape 0 and 1 are equal, this means, that we have found a pattern candidate in the text
-    # move both tapes, one value to the right, and continue the iteration
+    # if the current value on the tape 0 and 1 are equal, this means, that we have found a pattern
+    # candidate in the text, go to the 'match' state to check if all the characters are matched
     ELIF (T.0 == T.1) THEN {
-        GOTO dopasowanie {
+        GOTO match {
             T.0: [T.0, MOV_R],
             T.1: [T.1, MOV_R],
         }
     }
-    # if the current values on both tapes are different, just increment the index on tape 2
+    # in other cases just increment the input text index in tape 2 and move the tape 0 one to the right
     ELSE {
-        GOTO inkrementuj_t2 {
+        GOTO increment_t2 {
             T.1: [T.1, MOV_L],
         }
     }
 }
 
-dopasowanie {
-    # if current value on tape 1 is '$', this means that we have reached the end of the pattern tape and we found the match in the input text
-    # increment the index in tape 2 one more time to get the index of the first character of the pattern in the input text
+match {
+    # if current value on tape 1 is '$', this means that we have reached the end of the pattern tape
+    # and we found the match in the input text, algorithm ends
     IF (T.1 == "$") THEN {
-        GOTO ok_znaleziono {}
+        GOTO ok_found {}
     }
+    # if during the match procedure, we found the character '$' on tape 0, it means that we have reached
+    # the end of the input text without reaching the end of the pattern first, so the match was not found
+    # algorithm ends
     ELIF (T.0 == "$") THEN {
-        GOTO ok_nie_znaleziono {}
+        GOTO ok_not_found {}
     }
+    # iterate over 'match' state as long as the values in the pattern tape (T.1) match the values
+    # in the input text tape (T.0)
     ELIF (T.0 == T.1) THEN {
-        GOTO dopasowanie {
+        GOTO match {
             T.0: [T.0, MOV_R],
             T.1: [T.1, MOV_R],
         }
-    } ELSE {
-        GOTO przejdz_na_poczatek_t1 {
+    }
+    # if we found the character that doesn't match on both tapes, that means that the pattern check failed;
+    # go to the front of the pattern text on tape 1, and increment the input text index on tape 2 accordingly
+    ELSE {
+        GOTO move_to_front_tape_1 {
             T.0: [T.0, MOV_L],
             T.1: [T.1, MOV_L],
         }
     }
 }
 
-przejdz_na_poczatek_t1 {
+# move the head of the tape 1 to the front of the tape
+move_to_front_tape_1 {
+    # we have reached the begging of the tape, start the search
     IF (T.1 == "^") THEN {
-        GOTO wyszukiwanie {
+        GOTO search {
             T.0: [T.0, MOV_R],
             T.1: [T.1, MOV_R],
         }
-    } ELSE {
-        GOTO inkrementuj_t2 {
+    }
+    # for each character that the head of tape 1 was moved, increment the input text index
+    # it is used in the case of the failed 'match' state; when the match candidate is found in 'search' state
+    # the index is no longer incremented in the 'match' state as the head is moved on the tape 0
+    # but when the 'match' state don't match the whole pattern, we have to go back to the 'search' state
+    # and increment the input text index by the character count we iterated over in the text pattern on tape 1
+    ELSE {
+        GOTO increment_t2 {
             T.1: [T.1, MOV_L],
         }
     }
 }
 
-inkrementuj_t2 {
+# tape 2 increment in decimal format
+increment_t2 {
     IF (T.2 == "0") THEN {
-         GOTO przejdz_na_koniec_t2 { T.2: ["1", STAY] }
+         GOTO move_to_end_tape_2 { T.2: ["1", STAY] }
     }
     ELIF (T.2 == "1") THEN {
-         GOTO przejdz_na_koniec_t2 { T.2: ["2", STAY] }
+         GOTO move_to_end_tape_2 { T.2: ["2", STAY] }
     }
     ELIF (T.2 == "2") THEN {
-         GOTO przejdz_na_koniec_t2 { T.2: ["3", STAY] }
+         GOTO move_to_end_tape_2 { T.2: ["3", STAY] }
     }
     ELIF (T.2 == "3") THEN {
-         GOTO przejdz_na_koniec_t2 { T.2: ["4", STAY] }
+         GOTO move_to_end_tape_2 { T.2: ["4", STAY] }
     }
     ELIF (T.2 == "4") THEN {
-         GOTO przejdz_na_koniec_t2 { T.2: ["5", STAY] }
+         GOTO move_to_end_tape_2 { T.2: ["5", STAY] }
     }
     ELIF (T.2 == "5") THEN {
-         GOTO przejdz_na_koniec_t2 { T.2: ["6", STAY] }
+         GOTO move_to_end_tape_2 { T.2: ["6", STAY] }
     }
     ELIF (T.2 == "6") THEN {
-         GOTO przejdz_na_koniec_t2 { T.2: ["7", STAY] }
+         GOTO move_to_end_tape_2 { T.2: ["7", STAY] }
     }
     ELIF (T.2 == "7") THEN {
-         GOTO przejdz_na_koniec_t2 { T.2: ["8", STAY] }
+         GOTO move_to_end_tape_2 { T.2: ["8", STAY] }
     }
     ELIF (T.2 == "8") THEN {
-         GOTO przejdz_na_koniec_t2 { T.2: ["9", STAY] }
+         GOTO move_to_end_tape_2 { T.2: ["9", STAY] }
     }
+    # if the current value on the tape is '9', this means that we have an overflow situation
+    # move the tape to the left, and run again the 'increment_t2' state
     ELIF (T.2 == "9") THEN {
-        GOTO inkrementuj_t2 {
+        GOTO increment_t2 {
             T.2: ["0", MOV_L],
         }
     }
+    # if the '^' token was read, that means the front of the tape 2 was reached and the index counter can
+    # no longer be incremented
     ELIF (T.2 == "^") THEN {
-        GOTO err_przepelnienie_licznika {}
+        GOTO err_index_overflow {}
     }
+    # any other value should no appear on this tape, if that's the case, end the algorithm in the error state
     ELSE {
-        GOTO err_bledna_wartosc_w_liczniku {}
+        GOTO err_index_unexpected_value {}
     }
 }
 
-przejdz_na_koniec_t2 {
+# move the head on tape 2 to the end
+move_to_end_tape_2 {
+    # if the end of the tape 2 was reached, now move the head of the tape 1 to the front
     IF (T.2 == "$") THEN {
-        GOTO przejdz_na_poczatek_t1 {
+        GOTO move_to_front_tape_1 {
             T.2: [T.2, MOV_L],
         }
     } ELSE {
-        GOTO przejdz_na_koniec_t2 {
+        GOTO move_to_end_tape_2 {
             T.2: [T.2, MOV_R],
         }
     }
 }
 
-ok_znaleziono {}
-ok_nie_znaleziono {}
-err_przepelnienie_licznika {}
-err_bledna_wartosc_w_liczniku {}
+# required end states definitions
+ok_found {}
+ok_not_found {}
+err_index_overflow {}
+err_index_unexpected_value {}
+err_format_tape_0 {}
+err_format_tape_1 {}
+err_format_tape_2 {}
 
