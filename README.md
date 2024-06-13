@@ -212,3 +212,14 @@ and the state of the tapes.
 
 By default, the program is run automatically and it only outputs the final result. If you want to run the program step by step, launch the application with the `--debug` flag.
 
+The working example is defined in the `config.toml` file (the file extensions has no meaning in the context of the machine, it's only defined this way to work with the default 
+`toml` linter in code editor). It's an algorithm for checking for the pattern in the text. The input text is defined on tape `T.0`, the pattern is on tape `T.1` and on tape `T.2` 
+will be index, where in the input text the pattern begins, if the final state is `ok_found`. The resulting state are:
+* `ok_found` - the pattern was found in the input text
+* `ok_not_found` - the pattern was not found
+* `err_index_overflow` - the index value on tape `T.2` reached over the maximum value (999)
+* `err_index_unexpected_value` - found unexpected value on the index tape `T.2` (only accepted values are `^`, `0-9` and `$`)
+* `err_format_tape_<n>` - error in the definition of the nth tape
+
+Each tape must start with the `^` token and end with `$` token. In the context of the index, the character `^` on the beginning of the input text tape is not considered 
+as a text character (it doesn't count into the length of the text).
